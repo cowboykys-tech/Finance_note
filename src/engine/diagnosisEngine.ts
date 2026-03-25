@@ -24,18 +24,25 @@ type BandId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 
 type LCode = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6';
 
 type LimitRow = Partial<Record<LCode, Range>>;
+type JungjinStatus = '가능' | '불가능' | '확인필수';
 
 const roundTo100 = (value: number): number => {
   if (!Number.isFinite(value) || value <= 0) return 0;
   return Math.round(value / 100) * 100;
 };
 
-const clamp = (value: number, min: number, max: number): number => {
-  return Math.max(min, Math.min(max, value));
-};
-
 const safeNumber = (value: number): number => {
   return Number.isFinite(value) ? value : 0;
+};
+
+const isMeaningfulText = (value?: string | null): boolean => {
+  if (!value) return false;
+  const normalized = String(value).trim().toLowerCase();
+  return !['', '-', '--', '없음', 'none', 'null', 'n/a'].includes(normalized);
+};
+
+const normalizeText = (value?: string | null): string => {
+  return isMeaningfulText(value) ? String(value).trim() : '';
 };
 
 const formatMoney = (amount: number): string => {
@@ -68,7 +75,10 @@ const monthsBetween = (startDate: string): number => {
 };
 
 const getIndustryProfile = (input: UserInput): IndustryProfile => {
-  const text = `${input.mainIndustry} ${input.subIndustry} ${input.businessDescription}`.toLowerCase();
+  const main = normalizeText(input.mainIndustry);
+  const sub = normalizeText(input.subIndustry);
+  const desc = normalizeText(input.businessDescription);
+  const text = `${main} ${sub} ${desc}`.toLowerCase();
 
   const isFood =
     /음식|식당|외식|카페|커피|주점|베이커리|제과|디저트|배달전문점/.test(text);
@@ -94,9 +104,11 @@ const getIndustryProfile = (input: UserInput): IndustryProfile => {
     isConstruction,
   ].filter(Boolean).length;
 
-  const subIndustryNormalized = (input.subIndustry || '').toLowerCase();
+  const mainNormalized = main.toLowerCase();
+  const subNormalized = sub.toLowerCase();
+
   const isMixed =
-    (input.subIndustry && input.subIndustry !== 'none' && subIndustryNormalized !== (input.mainIndustry || '').toLowerCase()) ||
+    (subNormalized !== '' && subNormalized !== mainNormalized) ||
     categoryCount >= 2;
 
   let label = '일반 소상공인';
@@ -258,7 +270,7 @@ const subtractExistingGuarantee = (range: Range, guaranteeLoan: number): Range =
 };
 
 const getCombinedText = (input: UserInput): string => {
-  return `${input.mainIndustry || ''} ${input.subIndustry || ''} ${input.businessDescription || ''}`.toLowerCase();
+  return `${normalizeText(input.mainIndustry)} ${normalizeText(input.subIndustry)} ${normalizeText(input.businessDescription)}`.toLowerCase();
 };
 
 const classifyChunk = (input: UserInput, industry: IndustryProfile): ChunkType => {
@@ -362,6 +374,25 @@ const pickBestGuaranteeOption = (
   });
 
   return sorted[0] || { name: '보증기관 상담', code: 'L1', range: { min: 0, max: 0 } };
+};
+
+const getJungjinStatus = (
+  chunk: ChunkType,
+  baseRange: Range,
+  employeeCount: number,
+  monthsInBusiness: number,
+  hasDelinquency?: boolean,
+  hasTaxArrears?: boolean
+): JungjinStatus => {
+  if (baseRange.max <= 0) return '불가능';
+  if (hasDelinquency || hasTaxArrears) return '불가능';
+  if (monthsInBusiness < 6) return '확인필수';
+
+  if (chunk === 'CHUNK2') {
+    return employeeCount >= 1 ? '가능' : '확인필수';
+  }
+
+  return employeeCount >= 5 ? '가능' : '확인필수';
 };
 
 export const runEngine = (input: UserInput): DiagnosisResult => {
@@ -468,19 +499,14 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
   const semasLowCreditRange = l5Range;
 
   const jungjinBaseRange = status !== 'TEMP_INELIGIBLE' ? getRange(row, 'L6') : { min: 0, max: 0 };
-
-  const isManufacturingLike = chunk === 'CHUNK2';
-  const jungjinEligible =
-    jungjinBaseRange.max > 0 &&
-    !hasDelinquency &&
-    !hasTaxArrears &&
-    monthsInBusiness >= 6 &&
-    (
-      (isManufacturingLike && employeeCount >= 1) ||
-      (!isManufacturingLike && employeeCount >= 5)
-    );
-
-  const jungjinRange = jungjinEligible ? jungjinBaseRange : { min: 0, max: 0 };
+  const jungjinStatus = getJungjinStatus(
+    chunk,
+    jungjinBaseRange,
+    safeNumber(employeeCount),
+    monthsInBusiness,
+    hasDelinquency,
+    hasTaxArrears
+  );
 
   const totalExcludingJungjin: Range =
     status === 'TEMP_INELIGIBLE'
@@ -494,8 +520,8 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
     status === 'TEMP_INELIGIBLE'
       ? { min: 0, max: 0 }
       : {
-          min: roundTo100(bestGuarantee.range.min + l4Range.min + l5Range.min + jungjinRange.min),
-          max: roundTo100(bestGuarantee.range.max + l4Range.max + l5Range.max + jungjinRange.max),
+          min: roundTo100(bestGuarantee.range.min + l4Range.min + l5Range.min + jungjinBaseRange.min),
+          max: roundTo100(bestGuarantee.range.max + l4Range.max + l5Range.max + jungjinBaseRange.max),
         };
 
   const realisticRange =
@@ -534,7 +560,7 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
     if (bestGuarantee.name !== '신용보증기금') {
       secondaryInstitutions.push(
         shinboRange.max > 0
-          ? buildInstitutionLabel('신용보증기금', shinboRange, chunk === 'CHUNK1' ? '보증 공유한도상 택1' : '해당 CHUNK 비허용')
+          ? buildInstitutionLabel('신용보증기금', shinboRange, chunk === 'CHUNK1' ? '보증 공유한도상 택1' : '해당 업종군 비허용')
           : chunk === 'CHUNK1'
           ? '신용보증기금 (보증 공유한도 또는 해당 구간 미표기 시 추가 한도 제한 가능)'
           : '신용보증기금 (해당 업종군 비허용)'
@@ -544,7 +570,7 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
     if (bestGuarantee.name !== '기술보증기금') {
       secondaryInstitutions.push(
         kiboRange.max > 0
-          ? buildInstitutionLabel('기술보증기금', kiboRange, chunk === 'CHUNK2' ? '보증 공유한도상 택1' : '해당 CHUNK 비허용')
+          ? buildInstitutionLabel('기술보증기금', kiboRange, chunk === 'CHUNK2' ? '보증 공유한도상 택1' : '해당 업종군 비허용')
           : chunk === 'CHUNK2'
           ? '기술보증기금 (보증 공유한도 또는 해당 구간 미표기 시 추가 한도 제한 가능)'
           : '기술보증기금 (해당 업종군 비허용)'
@@ -553,9 +579,11 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
 
     if (jungjinBaseRange.max > 0) {
       secondaryInstitutions.push(
-        jungjinEligible
-          ? buildInstitutionLabel('중소벤처기업진흥공단', jungjinRange)
-          : '중소벤처기업진흥공단 (현재 입력 기준 직원수/업력 요건 재확인 필요)'
+        jungjinStatus === '가능'
+          ? buildInstitutionLabel('중소벤처기업진흥공단', jungjinBaseRange, '진행 가능성 있음')
+          : jungjinStatus === '확인필수'
+          ? `중소벤처기업진흥공단 (${formatRange(jungjinBaseRange)}, 직원수/업력 요건 확인필수)`
+          : '중소벤처기업진흥공단 (현재 조건상 진행 어려움)'
       );
     }
   }
@@ -583,8 +611,8 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
 
     if (jungjinBaseRange.max > 0) {
       executionOrder.push(
-        jungjinEligible
-          ? `중소벤처기업진흥공단은 마지막에 추가 한도 검토 (${formatRange(jungjinRange)})`
+        jungjinStatus === '가능'
+          ? `중소벤처기업진흥공단은 마지막에 추가 한도 검토 (${formatRange(jungjinBaseRange)})`
           : '중소벤처기업진흥공단은 직원수/업력 요건 확인 후 마지막에 검토'
       );
     }
@@ -624,10 +652,13 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
     notes.push(`기존 일반대출 ${formatMoney(generalLoan)}, 보증대출 ${formatMoney(existingGuarantee)}를 합산한 총부채는 ${formatMoney(totalDebt)}입니다.`);
     notes.push(`보증기관은 공유한도 구조라 동시 합산 대신 가장 유리한 1개 기관 기준으로 반영했습니다.`);
     notes.push(`중진공 제외 예상 범위는 ${formatRange(totalExcludingJungjin)}입니다.`);
+    notes.push(`중진공 포함 비교 범위는 ${formatRange(totalIncludingJungjin)}입니다.`);
     notes.push(
-      jungjinEligible
-        ? `중진공 포함 시 최대 범위는 ${formatRange(totalIncludingJungjin)}까지 검토 가능합니다.`
-        : '중진공은 현재 입력 기준으로 직원수/업력 요건 재확인이 필요하거나 반영 제외했습니다.'
+      jungjinStatus === '가능'
+        ? '중진공은 현재 입력 기준으로 진행 가능성 있는 후보로 볼 수 있습니다.'
+        : jungjinStatus === '확인필수'
+        ? '중진공은 현재 입력 기준으로 직원수/업력 등 세부 요건 확인이 추가로 필요합니다.'
+        : '중진공은 현재 입력 기준으로 반영이 어렵습니다.'
     );
     if (industry.isMixed) {
       notes.push('혼합형 업종은 실제 매출 비중이 높은 업종 기준으로 최종 전략이 달라질 수 있습니다.');
@@ -683,9 +714,9 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
     `- 이름: ${customerName}`,
     `- 연락처: ${customerPhone}`,
     `- 지역: ${customerRegion}`,
-    `- 업종: ${mainIndustry || '-'}`,
-    `- 세부업종: ${subIndustry && subIndustry !== 'none' ? subIndustry : '-'}`,
-    `- 사업내용: ${businessDescription || '-'}`,
+    `- 업종: ${normalizeText(mainIndustry) || '-'}`,
+    `- 세부업종: ${normalizeText(subIndustry) || '-'}`,
+    `- 사업내용: ${normalizeText(businessDescription) || '-'}`,
     `- 연매출: ${formatMoney(revenue)}`,
     `- 일반 대출: ${formatMoney(generalLoan)}`,
     `- 보증 대출: ${formatMoney(existingGuarantee)}`,
