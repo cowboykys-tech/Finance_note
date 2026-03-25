@@ -19,6 +19,12 @@ type IndustryProfile = {
   label: string;
 };
 
+type ChunkType = 'CHUNK1' | 'CHUNK2';
+type BandId = 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H' | 'I' | 'J' | 'K' | 'L' | 'M' | 'N' | 'O' | 'P';
+type LCode = 'L1' | 'L2' | 'L3' | 'L4' | 'L5' | 'L6';
+
+type LimitRow = Partial<Record<LCode, Range>>;
+
 const roundTo100 = (value: number): number => {
   if (!Number.isFinite(value) || value <= 0) return 0;
   return Math.round(value / 100) * 100;
@@ -65,15 +71,15 @@ const getIndustryProfile = (input: UserInput): IndustryProfile => {
   const text = `${input.mainIndustry} ${input.subIndustry} ${input.businessDescription}`.toLowerCase();
 
   const isFood =
-    /음식|식당|외식|카페|커피|주점|베이커리|제과|디저트/.test(text);
+    /음식|식당|외식|카페|커피|주점|베이커리|제과|디저트|배달전문점/.test(text);
   const isRetail =
-    /도소매|소매|유통|쇼핑몰|판매|스토어|마트|오픈마켓|스마트스토어|온라인판매|온라인 판매|상품판매/.test(text);
+    /도소매|소매|유통|쇼핑몰|판매|스토어|마트|오픈마켓|스마트스토어|온라인판매|온라인 판매|상품판매|브랜드|이커머스/.test(text);
   const isService =
-    /서비스|미용|교육|컨설팅|운송|여행|숙박|헬스|병원|세차|수리|대행|디자인|마케팅/.test(text);
+    /서비스|미용|교육|컨설팅|운송|여행|숙박|헬스|병원|세차|수리|대행|광고|마케팅/.test(text);
   const isManufacturing =
-    /제조|생산|공장|가공|조립|설비|기계|부품|라인|oem/.test(text);
+    /제조|생산|공장|가공|조립|설비|기계|부품|라인|oem|사출|반도체|배터리|의료기기/.test(text);
   const isIT =
-    /it|정보통신|소프트웨어|sw|플랫폼|앱|개발|saas|시스템|ai|데이터/.test(text);
+    /it|정보통신|소프트웨어|sw|앱개발|앱 개발|개발|saas|시스템|ai|데이터|플랫폼 개발|서비스 개발/.test(text);
   const isConstruction =
     /건설|인테리어|시공|토목|전기공사|설비공사/.test(text);
   const isOnline =
@@ -90,7 +96,7 @@ const getIndustryProfile = (input: UserInput): IndustryProfile => {
 
   const subIndustryNormalized = (input.subIndustry || '').toLowerCase();
   const isMixed =
-    (input.subIndustry && input.subIndustry !== 'none' && subIndustryNormalized !== input.mainIndustry.toLowerCase()) ||
+    (input.subIndustry && input.subIndustry !== 'none' && subIndustryNormalized !== (input.mainIndustry || '').toLowerCase()) ||
     categoryCount >= 2;
 
   let label = '일반 소상공인';
@@ -115,113 +121,131 @@ const getIndustryProfile = (input: UserInput): IndustryProfile => {
   };
 };
 
-const getRevenueBand = (annualRevenue: number) => {
-  if (annualRevenue < 5000) return 'UNDER_50M';
-  if (annualRevenue < 10000) return 'UNDER_100M';
-  if (annualRevenue < 30000) return 'UNDER_300M';
-  if (annualRevenue < 70000) return 'UNDER_700M';
-  if (annualRevenue < 150000) return 'UNDER_1_5B';
-  return 'OVER_1_5B';
+const LIMIT_TABLE: Record<ChunkType, Record<BandId, LimitRow>> = {
+  CHUNK1: {
+    A: {
+      L1: { min: 1000, max: 3000 },
+      L4: { min: 0, max: 0 },
+      L5: { min: 1000, max: 2500 },
+    },
+    B: {
+      L1: { min: 2000, max: 4000 },
+      L4: { min: 1000, max: 1000 },
+      L5: { min: 1000, max: 2500 },
+    },
+    C: {
+      L1: { min: 3000, max: 5000 },
+      L4: { min: 2000, max: 4000 },
+      L5: { min: 1500, max: 3000 },
+    },
+    D: {
+      L1: { min: 3000, max: 7000 },
+      L4: { min: 2000, max: 5000 },
+      L5: { min: 2000, max: 3000 },
+    },
+    E: {
+      L1: { min: 4000, max: 8000 },
+      L4: { min: 3000, max: 7000 },
+      L5: { min: 2000, max: 3000 },
+      L6: { min: 10000, max: 10000 },
+    },
+    F: {
+      L1: { min: 7000, max: 10000 },
+      L2: { min: 10000, max: 15000 },
+      L4: { min: 4000, max: 9000 },
+      L5: { min: 2000, max: 3000 },
+      L6: { min: 10000, max: 10000 },
+    },
+    G: {
+      L1: { min: 10000, max: 10000 },
+      L2: { min: 15000, max: 25000 },
+      L4: { min: 5000, max: 9000 },
+      L5: { min: 2000, max: 3000 },
+      L6: { min: 10000, max: 10000 },
+    },
+    H: {
+      L1: { min: 10000, max: 10000 },
+      L2: { min: 15000, max: 33000 },
+      L4: { min: 9000, max: 9000 },
+      L5: { min: 2000, max: 3000 },
+      L6: { min: 20000, max: 20000 },
+    },
+    I: {},
+    J: {},
+    K: {},
+    L: {},
+    M: {},
+    N: {},
+    O: {},
+    P: {},
+  },
+  CHUNK2: {
+    A: {},
+    B: {},
+    C: {},
+    D: {},
+    E: {},
+    F: {},
+    G: {},
+    H: {},
+    I: {
+      L1: { min: 1000, max: 3000 },
+      L4: { min: 0, max: 0 },
+      L5: { min: 1000, max: 2500 },
+    },
+    J: {
+      L1: { min: 2000, max: 4000 },
+      L4: { min: 1000, max: 3000 },
+      L5: { min: 1000, max: 2500 },
+    },
+    K: {
+      L1: { min: 3000, max: 5000 },
+      L3: { min: 5000, max: 5000 },
+      L4: { min: 2000, max: 4000 },
+      L5: { min: 1500, max: 3000 },
+      L6: { min: 10000, max: 10000 },
+    },
+    L: {
+      L1: { min: 3000, max: 7000 },
+      L3: { min: 10000, max: 10000 },
+      L4: { min: 2000, max: 5000 },
+      L5: { min: 2000, max: 3000 },
+      L6: { min: 10000, max: 10000 },
+    },
+    M: {
+      L1: { min: 4000, max: 8000 },
+      L3: { min: 10000, max: 20000 },
+      L4: { min: 3000, max: 7000 },
+      L5: { min: 2000, max: 3000 },
+      L6: { min: 10000, max: 20000 },
+    },
+    N: {
+      L1: { min: 7000, max: 10000 },
+      L3: { min: 20000, max: 30000 },
+      L4: { min: 4000, max: 9000 },
+      L5: { min: 2000, max: 3000 },
+      L6: { min: 10000, max: 30000 },
+    },
+    O: {
+      L1: { min: 10000, max: 10000 },
+      L3: { min: 30000, max: 40000 },
+      L4: { min: 5000, max: 9000 },
+      L5: { min: 2000, max: 3000 },
+      L6: { min: 10000, max: 30000 },
+    },
+    P: {
+      L1: { min: 10000, max: 10000 },
+      L3: { min: 30000, max: 50000 },
+      L4: { min: 9000, max: 9000 },
+      L5: { min: 2000, max: 3000 },
+      L6: { min: 10000, max: 40000 },
+    },
+  },
 };
 
-const getBaseRanges = (annualRevenue: number, industry: IndustryProfile) => {
-  const band = getRevenueBand(annualRevenue);
-
-  let semasGeneral: Range = { min: 1000, max: 3000 };
-  let semasLowCredit: Range = { min: 500, max: 2000 };
-  let localGuarantee: Range = { min: 2000, max: 4000 };
-  let shinbo: Range = { min: 0, max: 0 };
-  let kibo: Range = { min: 0, max: 0 };
-  let jungjin: Range = { min: 0, max: 0 };
-
-  switch (band) {
-    case 'UNDER_50M':
-      semasGeneral = { min: 1000, max: 2500 };
-      semasLowCredit = { min: 500, max: 1500 };
-      localGuarantee = { min: 1500, max: 3500 };
-      shinbo = { min: 1000, max: 2500 };
-      kibo = { min: 1500, max: 3000 };
-      jungjin = { min: 1000, max: 3000 };
-      break;
-    case 'UNDER_100M':
-      semasGeneral = { min: 1500, max: 3500 };
-      semasLowCredit = { min: 700, max: 2000 };
-      localGuarantee = { min: 2500, max: 4500 };
-      shinbo = { min: 2000, max: 4000 };
-      kibo = { min: 2500, max: 4500 };
-      jungjin = { min: 2000, max: 4000 };
-      break;
-    case 'UNDER_300M':
-      semasGeneral = { min: 2500, max: 5000 };
-      semasLowCredit = { min: 1000, max: 2500 };
-      localGuarantee = { min: 3500, max: 6500 };
-      shinbo = { min: 3000, max: 7000 };
-      kibo = { min: 3500, max: 8000 };
-      jungjin = { min: 3000, max: 6000 };
-      break;
-    case 'UNDER_700M':
-      semasGeneral = { min: 3500, max: 7000 };
-      semasLowCredit = { min: 1500, max: 3000 };
-      localGuarantee = { min: 5000, max: 9000 };
-      shinbo = { min: 5000, max: 10000 };
-      kibo = { min: 6000, max: 12000 };
-      jungjin = { min: 4000, max: 8000 };
-      break;
-    case 'UNDER_1_5B':
-      semasGeneral = { min: 4000, max: 7000 };
-      semasLowCredit = { min: 1500, max: 3000 };
-      localGuarantee = { min: 7000, max: 11000 };
-      shinbo = { min: 7000, max: 13000 };
-      kibo = { min: 8000, max: 15000 };
-      jungjin = { min: 5000, max: 10000 };
-      break;
-    case 'OVER_1_5B':
-      semasGeneral = { min: 5000, max: 7000 };
-      semasLowCredit = { min: 1500, max: 3000 };
-      localGuarantee = { min: 8000, max: 12000 };
-      shinbo = { min: 8000, max: 15000 };
-      kibo = { min: 9000, max: 18000 };
-      jungjin = { min: 6000, max: 12000 };
-      break;
-  }
-
-  if (industry.isFood || industry.isRetail || industry.isService) {
-    shinbo = {
-      min: roundTo100(shinbo.min * 0.9),
-      max: roundTo100(shinbo.max * 0.9),
-    };
-  }
-
-  if (industry.isManufacturing || industry.isIT) {
-    localGuarantee = {
-      min: roundTo100(localGuarantee.min * 0.95),
-      max: roundTo100(localGuarantee.max * 0.95),
-    };
-    shinbo = {
-      min: roundTo100(shinbo.min * 1.05),
-      max: roundTo100(shinbo.max * 1.1),
-    };
-    kibo = {
-      min: roundTo100(kibo.min * 1.1),
-      max: roundTo100(kibo.max * 1.15),
-    };
-    jungjin = {
-      min: roundTo100(jungjin.min * 1.1),
-      max: roundTo100(jungjin.max * 1.2),
-    };
-  }
-
-  return { semasGeneral, semasLowCredit, localGuarantee, shinbo, kibo, jungjin };
-};
-
-const applyFactor = (range: Range, factor: number): Range => {
-  const safeFactor = clamp(factor, 0, 1.2);
-  const min = roundTo100(range.min * safeFactor);
-  const max = roundTo100(range.max * safeFactor);
-  return {
-    min: Math.min(min, max),
-    max,
-  };
+const buildInstitutionLabel = (name: string, range: Range, extra?: string): string => {
+  if (range.max <= 0) return extra ? `${name} (${extra})` : `${name} (추가 한도 제한 가능)`;
+  return extra ? `${name} (${formatRange(range)}, ${extra})` : `${name} (${formatRange(range)})`;
 };
 
 const subtractExistingGuarantee = (range: Range, guaranteeLoan: number): Range => {
@@ -233,16 +257,111 @@ const subtractExistingGuarantee = (range: Range, guaranteeLoan: number): Range =
   };
 };
 
-const pickBestGuaranteeOption = (
-  options: { name: string; range: Range }[]
-): { name: string; range: Range } => {
-  const sorted = [...options].sort((a, b) => b.range.max - a.range.max);
-  return sorted[0] || { name: '보증기관 상담', range: { min: 0, max: 0 } };
+const getCombinedText = (input: UserInput): string => {
+  return `${input.mainIndustry || ''} ${input.subIndustry || ''} ${input.businessDescription || ''}`.toLowerCase();
 };
 
-const buildInstitutionLabel = (name: string, range: Range): string => {
-  if (range.max <= 0) return `${name} (기존 보증/조건 반영 시 추가 한도 제한 가능)`;
-  return `${name} (${formatRange(range)})`;
+const classifyChunk = (input: UserInput, industry: IndustryProfile): ChunkType => {
+  const text = getCombinedText(input);
+
+  const hasManufacturingKeyword =
+    /제조|공장|생산|생산라인|공정|가공|조립|설비|부품|사출|oem/.test(text);
+
+  const hasITDevKeyword =
+    /소프트웨어|sw|정보통신|개발|saas|시스템|ai|데이터|플랫폼 개발|서비스 개발/.test(text);
+
+  const hasChunk1Keyword =
+    /도소매|소매|유통|서비스|숙박|음식점|외식|카페|식당|프랜차이즈|쇼핑몰|온라인판매|브랜드|배달전문점/.test(text);
+
+  const hasODMOnly =
+    /odm|중국/.test(text) && !/oem|공장|제조|생산라인/.test(text);
+
+  if (hasManufacturingKeyword) return 'CHUNK2';
+  if (hasITDevKeyword && !hasChunk1Keyword) return 'CHUNK2';
+  if (hasODMOnly) return 'CHUNK1';
+  if (industry.isFood || industry.isRetail || industry.isService) return 'CHUNK1';
+  if (industry.isManufacturing || industry.isIT) return 'CHUNK2';
+
+  return 'CHUNK1';
+};
+
+const getBandId = (annualRevenue: number, chunk: ChunkType): BandId => {
+  const revenue = safeNumber(annualRevenue);
+
+  if (chunk === 'CHUNK1') {
+    if (revenue <= 2999) return 'A';
+    if (revenue <= 6999) return 'B';
+    if (revenue <= 21999) return 'C';
+    if (revenue <= 29999) return 'D';
+    if (revenue <= 69999) return 'E';
+    if (revenue <= 99999) return 'F';
+    if (revenue <= 129999) return 'G';
+    return 'H';
+  }
+
+  if (revenue <= 2999) return 'I';
+  if (revenue <= 6999) return 'J';
+  if (revenue <= 21999) return 'K';
+  if (revenue <= 29999) return 'L';
+  if (revenue <= 69999) return 'M';
+  if (revenue <= 99999) return 'N';
+  if (revenue <= 129999) return 'O';
+  return 'P';
+};
+
+const getBandDescription = (bandId: BandId): string => {
+  const map: Record<BandId, string> = {
+    A: '0원 \~ 2,999만원 이하',
+    B: '3,000만원 \~ 6,999만원 이하',
+    C: '7,000만원 \~ 2억 1,999만원 이하',
+    D: '2억 2,000만원 \~ 2억 9,999만원 이하',
+    E: '3억원 \~ 6억 9,999만원 이하',
+    F: '7억원 \~ 9억 9,999만원 이하',
+    G: '10억원 \~ 12억 9,999만원 이하',
+    H: '13억원 이상',
+    I: '0원 \~ 2,999만원 이하',
+    J: '3,000만원 \~ 6,999만원 이하',
+    K: '7,000만원 \~ 2억 1,999만원 이하',
+    L: '2억 2,000만원 \~ 2억 9,999만원 이하',
+    M: '3억원 \~ 6억 9,999만원 이하',
+    N: '7억원 \~ 9억 9,999만원 이하',
+    O: '10억원 \~ 12억 9,999만원 이하',
+    P: '13억원 이상',
+  };
+
+  return map[bandId];
+};
+
+const getRow = (chunk: ChunkType, bandId: BandId): LimitRow => {
+  return LIMIT_TABLE[chunk][bandId] || {};
+};
+
+const getRange = (row: LimitRow, code: LCode): Range => {
+  return row[code] || { min: 0, max: 0 };
+};
+
+const pickBestGuaranteeOption = (
+  chunk: ChunkType,
+  row: LimitRow,
+  existingGuarantee: number
+): { name: string; code: 'L1' | 'L2' | 'L3'; range: Range } => {
+  const candidates =
+    chunk === 'CHUNK1'
+      ? [
+          { name: '지역신용보증재단', code: 'L1' as const, range: subtractExistingGuarantee(getRange(row, 'L1'), existingGuarantee) },
+          { name: '신용보증기금', code: 'L2' as const, range: subtractExistingGuarantee(getRange(row, 'L2'), existingGuarantee) },
+        ]
+      : [
+          { name: '지역신용보증재단', code: 'L1' as const, range: subtractExistingGuarantee(getRange(row, 'L1'), existingGuarantee) },
+          { name: '기술보증기금', code: 'L3' as const, range: subtractExistingGuarantee(getRange(row, 'L3'), existingGuarantee) },
+        ];
+
+  const sorted = [...candidates].sort((a, b) => {
+    if (b.range.max !== a.range.max) return b.range.max - a.range.max;
+    return b.range.min - a.range.min;
+  });
+
+  return sorted[0] || { name: '보증기관 상담', code: 'L1', range: { min: 0, max: 0 } };
 };
 
 export const runEngine = (input: UserInput): DiagnosisResult => {
@@ -278,8 +397,6 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
   const isEarly = monthsInBusiness >= 6 && monthsInBusiness < 12;
   const isGrowth = monthsInBusiness >= 12 && monthsInBusiness < 36;
   const isLowCredit = credit > 0 && credit <= 839;
-  const isVeryLowCredit = credit > 0 && credit <= 744;
-  const isStrongCredit = credit >= 890;
 
   let status: Status = 'ELIGIBLE';
   let statusMessage = '';
@@ -307,111 +424,85 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
     status = 'CONDITIONAL';
     statusMessage = '조건부로 검토 가능한 구간입니다.';
     statusReason = isLowCredit
-      ? 'NICE 신용점수가 839점 이하라 일반자금보다 저신용 특례 또는 보수적 보증 전략이 더 현실적입니다.'
+      ? 'NICE 신용점수가 839점 이하라 일반자금 외에 저신용 자금을 함께 검토해야 합니다.'
       : isVeryEarly
-      ? '개업 초기 구간이라 매출·거래내역·사업 안정성 확인에 따라 가능 범위 차이가 커질 수 있습니다.'
-      : '혼합형 업종으로 보아 실제 매출 비중이 높은 업종 기준 추가 확인이 필요합니다.';
+      ? '개업 초기 구간이라 서류와 거래 흐름에 따라 실제 가능 범위 차이가 커질 수 있습니다.'
+      : '혼합형 업종으로 보여 실제 매출 비중이 높은 업종 기준 추가 확인이 필요합니다.';
   } else {
     status = 'ELIGIBLE';
     statusMessage = '현재 입력 기준으로는 정책자금 검토 가능성이 높은 편입니다.';
     statusReason = '업력, 매출, 부채, 신용 흐름이 전반적으로 안정적이라 기관별 비교 진행이 가능한 상태입니다.';
   }
 
-  const baseRanges = getBaseRanges(revenue, industry);
+  const chunk = classifyChunk(input, industry);
+  const bandId = getBandId(revenue, chunk);
+  const row = getRow(chunk, bandId);
+  const bandDescription = getBandDescription(bandId);
 
-  const ageFactor = isVeryEarly ? 0.55 : isEarly ? 0.72 : isGrowth ? 0.88 : 1;
-  const creditFactor = isVeryLowCredit ? 0.55 : isLowCredit ? 0.75 : credit < 890 ? 0.9 : 1;
-  const debtFactor =
-    debtRatio <= 0.3 ? 1 :
-    debtRatio <= 0.7 ? 0.9 :
-    debtRatio <= 1.0 ? 0.78 :
-    debtRatio <= 1.5 ? 0.58 : 0.35;
-
-  const semasFactor = clamp(ageFactor * Math.max(creditFactor, isLowCredit ? 0.72 : creditFactor) * debtFactor, 0.3, 1);
-  const guaranteeFactor = clamp((ageFactor + 0.12) * (creditFactor + 0.05) * debtFactor, 0.25, 1.05);
-  const techGuaranteeFactor = clamp((ageFactor + 0.15) * (creditFactor + 0.08) * debtFactor, 0.25, 1.1);
-  const jungjinFactor = clamp((ageFactor + 0.12) * (creditFactor + 0.05) * Math.max(debtFactor, 0.45), 0.3, 1);
-
-  const semasGeneralRange =
-    !isLowCredit && status !== 'TEMP_INELIGIBLE'
-      ? applyFactor(baseRanges.semasGeneral, semasFactor)
+  const l4Range = status !== 'TEMP_INELIGIBLE' ? getRange(row, 'L4') : { min: 0, max: 0 };
+  const l5Range =
+    status !== 'TEMP_INELIGIBLE' && isLowCredit
+      ? getRange(row, 'L5')
       : { min: 0, max: 0 };
 
-  const semasLowCreditRange =
-    isLowCredit && status !== 'TEMP_INELIGIBLE'
-      ? applyFactor(baseRanges.semasLowCredit, clamp(ageFactor * debtFactor * 1.05, 0.35, 1))
-      : { min: 0, max: 0 };
+  const bestGuarantee = status !== 'TEMP_INELIGIBLE'
+    ? pickBestGuaranteeOption(chunk, row, existingGuarantee)
+    : { name: '보증기관 상담', code: 'L1' as const, range: { min: 0, max: 0 } };
 
   const localGuaranteeRange =
     status !== 'TEMP_INELIGIBLE'
-      ? subtractExistingGuarantee(applyFactor(baseRanges.localGuarantee, guaranteeFactor), existingGuarantee)
+      ? subtractExistingGuarantee(getRange(row, 'L1'), existingGuarantee)
       : { min: 0, max: 0 };
-
-  const shinboEligible =
-    !isVeryEarly &&
-    !industry.isFood &&
-    !hasDelinquency &&
-    !hasTaxArrears &&
-    revenue >= 3000;
 
   const shinboRange =
-    shinboEligible && status !== 'TEMP_INELIGIBLE'
-      ? subtractExistingGuarantee(applyFactor(baseRanges.shinbo, industry.isManufacturing || industry.isIT ? techGuaranteeFactor : guaranteeFactor), existingGuarantee)
+    status !== 'TEMP_INELIGIBLE'
+      ? subtractExistingGuarantee(getRange(row, 'L2'), existingGuarantee)
       : { min: 0, max: 0 };
-
-  const kiboEligible =
-    (industry.isManufacturing || industry.isIT) &&
-    monthsInBusiness >= 6 &&
-    revenue >= 3000 &&
-    !hasDelinquency &&
-    !hasTaxArrears;
 
   const kiboRange =
-    kiboEligible && status !== 'TEMP_INELIGIBLE'
-      ? subtractExistingGuarantee(applyFactor(baseRanges.kibo, techGuaranteeFactor), existingGuarantee)
+    status !== 'TEMP_INELIGIBLE'
+      ? subtractExistingGuarantee(getRange(row, 'L3'), existingGuarantee)
       : { min: 0, max: 0 };
 
+  const semasGeneralRange = l4Range;
+  const semasLowCreditRange = l5Range;
+
+  const jungjinBaseRange = status !== 'TEMP_INELIGIBLE' ? getRange(row, 'L6') : { min: 0, max: 0 };
+
+  const isManufacturingLike = chunk === 'CHUNK2';
   const jungjinEligible =
+    jungjinBaseRange.max > 0 &&
     !hasDelinquency &&
     !hasTaxArrears &&
     monthsInBusiness >= 6 &&
     (
-      ((industry.isManufacturing || industry.isIT) && employeeCount >= 1) ||
-      (!(industry.isManufacturing || industry.isIT) && employeeCount >= 5 && revenue >= 30000)
+      (isManufacturingLike && employeeCount >= 1) ||
+      (!isManufacturingLike && employeeCount >= 5)
     );
 
-  const jungjinRange =
-    jungjinEligible && status !== 'TEMP_INELIGIBLE'
-      ? applyFactor(baseRanges.jungjin, jungjinFactor)
-      : { min: 0, max: 0 };
+  const jungjinRange = jungjinEligible ? jungjinBaseRange : { min: 0, max: 0 };
 
-  const semasChosenRange = semasGeneralRange.max >= semasLowCreditRange.max ? semasGeneralRange : semasLowCreditRange;
-  const semasChosenName =
-    semasGeneralRange.max >= semasLowCreditRange.max
-      ? '소상공인시장진흥공단'
-      : '소상공인시장진흥공단 저신용자금';
-
-  const bestGuarantee = pickBestGuaranteeOption([
-    { name: '지역신용보증재단', range: localGuaranteeRange },
-    { name: '신용보증기금', range: shinboRange },
-    { name: '기술보증기금', range: kiboRange },
-  ]);
-
-  const realisticRangeValue: Range =
+  const totalExcludingJungjin: Range =
     status === 'TEMP_INELIGIBLE'
       ? { min: 0, max: 0 }
       : {
-          min: roundTo100(semasChosenRange.min + bestGuarantee.range.min),
-          max: roundTo100(semasChosenRange.max + bestGuarantee.range.max),
+          min: roundTo100(bestGuarantee.range.min + l4Range.min + l5Range.min),
+          max: roundTo100(bestGuarantee.range.max + l4Range.max + l5Range.max),
         };
 
-  const conservativeMaxValue =
+  const totalIncludingJungjin: Range =
     status === 'TEMP_INELIGIBLE'
-      ? 0
-      : roundTo100(realisticRangeValue.max + (jungjinRange.max > 0 ? Math.round(jungjinRange.max * 0.7) : 0));
+      ? { min: 0, max: 0 }
+      : {
+          min: roundTo100(bestGuarantee.range.min + l4Range.min + l5Range.min + jungjinRange.min),
+          max: roundTo100(bestGuarantee.range.max + l4Range.max + l5Range.max + jungjinRange.max),
+        };
 
   const realisticRange =
-    realisticRangeValue.max > 0 ? formatRange(realisticRangeValue) : '상담 후 확인 가능';
+    totalExcludingJungjin.max > 0 ? formatRange(totalExcludingJungjin) : '상담 후 확인 가능';
+
+  const conservativeMaxValue =
+    totalIncludingJungjin.max > 0 ? totalIncludingJungjin.max : totalExcludingJungjin.max;
 
   const conservativeMax =
     conservativeMaxValue > 0 ? `${formatMoney(conservativeMaxValue)} 내외` : '상담 후 확인 가능';
@@ -420,32 +511,52 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
   const secondaryInstitutions: string[] = [];
 
   if (status !== 'TEMP_INELIGIBLE') {
-    if (semasChosenRange.max > 0) {
-      primaryInstitutions.push(buildInstitutionLabel(semasChosenName, semasChosenRange));
+    if (semasGeneralRange.max > 0) {
+      primaryInstitutions.push(buildInstitutionLabel('소상공인시장진흥공단', semasGeneralRange));
     }
 
     if (bestGuarantee.range.max > 0) {
       primaryInstitutions.push(buildInstitutionLabel(bestGuarantee.name, bestGuarantee.range));
     }
 
-    if (jungjinRange.max > 0) {
-      secondaryInstitutions.push(buildInstitutionLabel('중소벤처기업진흥공단', jungjinRange));
+    if (semasLowCreditRange.max > 0) {
+      secondaryInstitutions.push(buildInstitutionLabel('소상공인시장진흥공단 저신용자금', semasLowCreditRange));
     }
 
-    const remainingOptions = [
-      { name: '지역신용보증재단', range: localGuaranteeRange },
-      { name: '신용보증기금', range: shinboRange },
-      { name: '기술보증기금', range: kiboRange },
-    ]
-      .filter((item) => item.name !== bestGuarantee.name && item.range.max > 0)
-      .sort((a, b) => b.range.max - a.range.max);
+    if (bestGuarantee.name !== '지역신용보증재단') {
+      secondaryInstitutions.push(
+        localGuaranteeRange.max > 0
+          ? buildInstitutionLabel('지역신용보증재단', localGuaranteeRange, '보증 공유한도상 택1')
+          : '지역신용보증재단 (보증 공유한도 또는 기존 보증 반영 시 추가 한도 제한 가능)'
+      );
+    }
 
-    remainingOptions.forEach((item) => {
-      secondaryInstitutions.push(buildInstitutionLabel(item.name, item.range));
-    });
+    if (bestGuarantee.name !== '신용보증기금') {
+      secondaryInstitutions.push(
+        shinboRange.max > 0
+          ? buildInstitutionLabel('신용보증기금', shinboRange, chunk === 'CHUNK1' ? '보증 공유한도상 택1' : '해당 CHUNK 비허용')
+          : chunk === 'CHUNK1'
+          ? '신용보증기금 (보증 공유한도 또는 해당 구간 미표기 시 추가 한도 제한 가능)'
+          : '신용보증기금 (해당 업종군 비허용)'
+      );
+    }
 
-    if (isLowCredit && semasLowCreditRange.max > 0 && semasChosenName !== '소상공인시장진흥공단 저신용자금') {
-      secondaryInstitutions.unshift(buildInstitutionLabel('소상공인시장진흥공단 저신용자금', semasLowCreditRange));
+    if (bestGuarantee.name !== '기술보증기금') {
+      secondaryInstitutions.push(
+        kiboRange.max > 0
+          ? buildInstitutionLabel('기술보증기금', kiboRange, chunk === 'CHUNK2' ? '보증 공유한도상 택1' : '해당 CHUNK 비허용')
+          : chunk === 'CHUNK2'
+          ? '기술보증기금 (보증 공유한도 또는 해당 구간 미표기 시 추가 한도 제한 가능)'
+          : '기술보증기금 (해당 업종군 비허용)'
+      );
+    }
+
+    if (jungjinBaseRange.max > 0) {
+      secondaryInstitutions.push(
+        jungjinEligible
+          ? buildInstitutionLabel('중소벤처기업진흥공단', jungjinRange)
+          : '중소벤처기업진흥공단 (현재 입력 기준 직원수/업력 요건 재확인 필요)'
+      );
     }
   }
 
@@ -459,33 +570,23 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
     );
   } else {
     if (semasGeneralRange.max > 0) {
-      executionOrder.push('소상공인시장진흥공단 일반자금 가능 여부를 먼저 확인');
-    } else if (semasLowCreditRange.max > 0) {
-      executionOrder.push('소상공인시장진흥공단 저신용자금을 우선 검토');
+      executionOrder.push(`소상공인시장진흥공단 일반자금부터 확인 (${formatRange(semasGeneralRange)})`);
     }
 
-    if (isLowCredit && semasGeneralRange.max > 0 && semasLowCreditRange.max > 0) {
-      executionOrder.push('저신용 특례는 보조 카드로 함께 검토');
-    } else if (isLowCredit && semasLowCreditRange.max > 0 && semasGeneralRange.max <= 0) {
-      executionOrder.push('저신용 특례 승인 가능 범위를 기준으로 보증 연계 여부 확인');
+    if (semasLowCreditRange.max > 0) {
+      executionOrder.push(`저신용 특례는 추가 카드로 검토 (${formatRange(semasLowCreditRange)})`);
     }
 
     if (bestGuarantee.range.max > 0) {
-      executionOrder.push(`${bestGuarantee.name} 중심으로 보증 한도 확장 검토`);
+      executionOrder.push(`${bestGuarantee.name} 중심으로 보증 연계 검토 (${formatRange(bestGuarantee.range)})`);
     }
 
-    const altGuarantees = [
-      { name: '지역신용보증재단', range: localGuaranteeRange },
-      { name: '신용보증기금', range: shinboRange },
-      { name: '기술보증기금', range: kiboRange },
-    ].filter((item) => item.name !== bestGuarantee.name && item.range.max > 0);
-
-    if (altGuarantees.length > 0) {
-      executionOrder.push('추가 보증기관은 업종 적합성과 기존 보증 사용 규모를 보고 택1로 비교');
-    }
-
-    if (jungjinRange.max > 0) {
-      executionOrder.push('중소벤처기업진흥공단은 마지막에 추가 한도 관점으로 검토');
+    if (jungjinBaseRange.max > 0) {
+      executionOrder.push(
+        jungjinEligible
+          ? `중소벤처기업진흥공단은 마지막에 추가 한도 검토 (${formatRange(jungjinRange)})`
+          : '중소벤처기업진흥공단은 직원수/업력 요건 확인 후 마지막에 검토'
+      );
     }
   }
 
@@ -494,13 +595,11 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
   if (status === 'TEMP_INELIGIBLE') {
     direction = '지금은 접수보다 연체·체납 해소 후 재진단이 우선입니다.';
   } else if (isLowCredit) {
-    direction = '저신용 특례 + 1개 보증기관 조합으로 보수적으로 접근하는 전략이 적합합니다.';
-  } else if (industry.isManufacturing || industry.isIT) {
-    direction = '기술·제조형 기관과 보증기관을 비교해 한도를 넓히는 전략이 유리합니다.';
-  } else if (industry.isFood || industry.isRetail || industry.isService) {
-    direction = '소진공 + 보증재단 중심으로 현실적인 운영자금 조합을 먼저 보는 흐름이 적합합니다.';
+    direction = '일반자금 + 저신용 추가 한도 + 보증 1개 기관 조합으로 보수적으로 접근하는 전략이 적합합니다.';
+  } else if (chunk === 'CHUNK2') {
+    direction = '제조·기술형 기준으로 보증 1개 기관과 직접대출을 조합해 한도를 넓히는 전략이 유리합니다.';
   } else {
-    direction = '소진공과 보증기관을 함께 비교하면서 가장 가능성 높은 경로부터 진행하는 전략이 좋습니다.';
+    direction = '소진공 일반 + 보증 1개 기관 중심으로 현실적인 운영자금 조합을 먼저 보는 흐름이 적합합니다.';
   }
 
   const ageLabel = isVeryEarly
@@ -514,25 +613,29 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
   const calculationBasis =
     status === 'TEMP_INELIGIBLE'
       ? '연체/체납 선해결 필요'
-      : `${industry.label} · ${ageLabel} · 연매출 ${formatMoney(revenue)} · 기존대출 ${formatMoney(totalDebt)} · NICE ${credit}점 반영`;
+      : `${industry.label} · ${ageLabel} · ${chunk} ${bandId}구간(${bandDescription}) · 연매출 ${formatMoney(revenue)} · 기존대출 ${formatMoney(totalDebt)} · NICE ${credit}점 반영`;
 
   const notes: string[] = [];
 
   if (status !== 'TEMP_INELIGIBLE') {
     notes.push(`현재 업종 성격은 ${industry.label}으로 판단됩니다.`);
+    notes.push(`한도 계산은 ${chunk} ${bandId}구간(${bandDescription}) 원본 기준으로 반영했습니다.`);
     notes.push(`업력은 약 ${yearsInBusiness.toFixed(1)}년 수준이며, ${ageLabel} 구간으로 반영했습니다.`);
     notes.push(`기존 일반대출 ${formatMoney(generalLoan)}, 보증대출 ${formatMoney(existingGuarantee)}를 합산한 총부채는 ${formatMoney(totalDebt)}입니다.`);
-    if (bestGuarantee.range.max > 0) {
-      notes.push(`보증기관은 동시 합산보다 가장 적합한 1개 기관 중심으로 보는 것이 현실적입니다.`);
-    }
-    if (jungjinRange.max > 0) {
-      notes.push(`중소벤처기업진흥공단은 업종과 직원 수 조건상 추가 검토 여지가 있습니다.`);
-    }
+    notes.push(`보증기관은 공유한도 구조라 동시 합산 대신 가장 유리한 1개 기관 기준으로 반영했습니다.`);
+    notes.push(`중진공 제외 예상 범위는 ${formatRange(totalExcludingJungjin)}입니다.`);
+    notes.push(
+      jungjinEligible
+        ? `중진공 포함 시 최대 범위는 ${formatRange(totalIncludingJungjin)}까지 검토 가능합니다.`
+        : '중진공은 현재 입력 기준으로 직원수/업력 요건 재확인이 필요하거나 반영 제외했습니다.'
+    );
     if (industry.isMixed) {
       notes.push('혼합형 업종은 실제 매출 비중이 높은 업종 기준으로 최종 전략이 달라질 수 있습니다.');
     }
     if (isLowCredit) {
-      notes.push('저신용 구간은 일반 상품보다 특례·보수적 한도 중심으로 보는 것이 안전합니다.');
+      notes.push('저신용 구간은 L5 추가 한도를 함께 검토합니다.');
+    } else {
+      notes.push('NICE 840점 이상이면 저신용 추가 한도(L5)는 반영하지 않았습니다.');
     }
   } else {
     notes.push('현재 상태에서는 신규 접수보다 문제 해소 확인이 우선입니다.');
@@ -562,6 +665,7 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
 
   const precautions: string[] = [
     '본 결과는 입력 정보 기준의 사전 진단이며 실제 심사 결과와 다를 수 있습니다.',
+    '보증기관은 공유한도 구조라 여러 기관을 동시에 합산하지 않습니다.',
     '기존 보증대출 규모가 크면 보증기관 추가 한도는 크게 줄어들 수 있습니다.',
     '정책자금은 공고 시기와 예산 상황에 따라 실제 접수 가능 여부가 달라질 수 있습니다.',
     '혼합 업종, 초기 창업, 저신용 구간은 서류 보완과 설명 방식에 따라 체감 결과 차이가 큽니다.',
@@ -597,6 +701,8 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
     `- 판단 사유: ${statusReason}`,
     `- 현실적 가능 범위: ${realisticRange}`,
     `- 보수적 최대: ${conservativeMax}`,
+    `- 중진공 포함 시: ${totalIncludingJungjin.max > 0 ? formatRange(totalIncludingJungjin) : '반영 제외 또는 확인 필요'}`,
+    `- 중진공 제외 시: ${totalExcludingJungjin.max > 0 ? formatRange(totalExcludingJungjin) : '상담 후 확인 가능'}`,
     `- 우선 검토 기관: ${primaryInstitutions.length > 0 ? primaryInstitutions.join(', ') : '상담 후 확인 필요'}`,
     `- 추가 검토 기관: ${secondaryInstitutions.length > 0 ? secondaryInstitutions.join(', ') : '없음'}`,
     `- 추천 방향: ${direction}`,
@@ -610,9 +716,10 @@ export const runEngine = (input: UserInput): DiagnosisResult => {
       ? ['연체·체납 해소 후 재진단']
       : [
           `${fundPurpose || '운영'} 중심 정책자금`,
-          semasChosenRange.max > 0 ? `${semasChosenName} 연계 검토` : '',
+          semasGeneralRange.max > 0 ? '소상공인시장진흥공단 일반자금' : '',
+          semasLowCreditRange.max > 0 ? '소상공인시장진흥공단 저신용자금' : '',
           bestGuarantee.range.max > 0 ? `${bestGuarantee.name} 연계 검토` : '',
-          jungjinRange.max > 0 ? '중소벤처기업진흥공단 추가 검토' : '',
+          jungjinBaseRange.max > 0 ? '중소벤처기업진흥공단 추가 검토' : '',
         ].filter(Boolean);
 
   const expectedInstitutions = [...primaryInstitutions];
